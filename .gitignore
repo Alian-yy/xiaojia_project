@@ -1,0 +1,29 @@
+# 虚拟环境
+venv/
+env/
+.env
+*.env
+
+# Anaconda 虚拟环境（重要！）
+anaconda3/
+miniconda3/
+envs/
+
+# PyCharm
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.ipynb_checkpoints
+
+# 日志/临时文件
+*.log
+mosquitto.log
+
+# 操作系统
+.DS_Store
+Thumbs.db
