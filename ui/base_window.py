@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QFrame, QLabel, QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QPixmap
 from datetime import datetime
 from ui.styles.dark_theme import DARK_THEME
 
@@ -16,7 +16,7 @@ from ui.styles.dark_theme import DARK_THEME
 class BaseWindow(QMainWindow):
     """基础窗口类"""
 
-    def __init__(self, title: str = "小嘉智能系统",
+    def __init__(self, title: str = "小嘉——同济大学嘉定校区环境数字助手",
                  width: int = 1400, height: int = 900):
         super().__init__()
 
@@ -44,33 +44,119 @@ class BaseWindow(QMainWindow):
         self.root_layout.setContentsMargins(0, 0, 0, 0)
         self.root_layout.setSpacing(0)
 
+    # def _setup_header(self):
+    #     """设置顶部标题栏"""
+    #     self.header = QFrame()
+    #     self.header.setObjectName("headerFrame")
+    #     self.header.setFixedHeight(70)
+    #
+    #     header_layout = QHBoxLayout(self.header)
+    #     header_layout.setContentsMargins(25, 10, 25, 10)
+    #
+    #     # === 左侧：图标 + 标题 ===
+    #     title_container = QVBoxLayout()
+    #     title_container.setSpacing(12)
+    #
+    #     # 图标 QLabel（用于显示图片）
+    #     icon_label = QLabel()
+    #     pixmap = QPixmap("assets/tongji.png")  # ← 图片路径
+    #     if pixmap.isNull():
+    #         # 如果图片未找到，显示默认图标或留空
+    #         icon_label.setText("🏠")
+    #         icon_label.setStyleSheet("font-size: 24px;")
+    #     else:
+    #         # 缩放图片以适应高度（保持比例）
+    #         scaled_pixmap = pixmap.scaledToHeight(
+    #             36, Qt.SmoothTransformation
+    #         )
+    #         icon_label.setPixmap(scaled_pixmap)
+    #     icon_label.setAlignment(Qt.AlignVCenter)
+    #     title_container.addWidget(icon_label)
+    #
+    #     # 文字部分（垂直布局：主标题 + 副标题）
+    #     text_layout = QVBoxLayout()
+    #     text_layout.setSpacing(2)
+    #
+    #     self.title_label = QLabel("小嘉——同济大学嘉定校区环境数字助手")
+    #     self.title_label.setObjectName("titleLabel")
+    #     title_container.addWidget(self.title_label)
+    #
+    #     self.subtitle_label = QLabel("XiaoJia — Digital Environmental Assistant for Jiading Campus, Tongji University")
+    #     self.subtitle_label.setObjectName("subtitleLabel")
+    #     title_container.addWidget(self.subtitle_label)
+    #
+    #     header_layout.addLayout(title_container)
+    #     header_layout.addStretch()
+    #
+    #     # 右侧：时间显示
+    #     time_container = QVBoxLayout()
+    #     time_container.setAlignment(Qt.AlignRight)
+    #
+    #     self.date_label = QLabel()
+    #     self.date_label.setObjectName("datetimeLabel")
+    #     self.date_label.setAlignment(Qt.AlignRight)
+    #     time_container.addWidget(self.date_label)
+    #
+    #     self.time_label = QLabel()
+    #     self.time_label.setObjectName("datetimeLabel")
+    #     self.time_label.setAlignment(Qt.AlignRight)
+    #     self.time_label.setStyleSheet("font-size: 20px;")
+    #     time_container.addWidget(self.time_label)
+    #
+    #     header_layout.addLayout(time_container)
+    #
+    #     # 添加发光效果
+    #     self._add_glow_effect(self.header, QColor(0, 200, 255, 50))
+    #
+    #     self.root_layout.addWidget(self.header)
+
     def _setup_header(self):
         """设置顶部标题栏"""
         self.header = QFrame()
         self.header.setObjectName("headerFrame")
-        self.header.setFixedHeight(70)
+        self.header.setFixedHeight(90)
 
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(25, 10, 25, 10)
 
-        # 左侧：标题
-        title_container = QVBoxLayout()
-        title_container.setSpacing(2)
+        # === 左侧：图标 + 标题（水平+垂直嵌套）===
+        left_container = QHBoxLayout()
+        left_container.setSpacing(12)  # 图标与文字块的间距
 
-        self.title_label = QLabel("🏠 小嘉智能环境监控系统")
+        # 1. 图标（图片）
+        icon_label = QLabel()
+        pixmap = QPixmap("assets/tongji.png")
+        if not pixmap.isNull():
+            scaled_pixmap = pixmap.scaledToHeight(
+                60, Qt.SmoothTransformation
+            )
+            icon_label.setPixmap(scaled_pixmap)
+        else:
+            icon_label.setText("🏠")
+            icon_label.setStyleSheet("font-size: 24px;")
+        icon_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        left_container.addWidget(icon_label)
+
+        # 2. 文字区域（主标题 + 副标题，垂直排列）
+        text_container = QVBoxLayout()
+        text_container.setSpacing(2)
+        text_container.setAlignment(Qt.AlignVCenter)  # 垂直居中对齐图标
+
+        self.title_label = QLabel("小嘉——同济大学嘉定校区环境数字助手")
         self.title_label.setObjectName("titleLabel")
-        title_container.addWidget(self.title_label)
+        text_container.addWidget(self.title_label)
 
-        self.subtitle_label = QLabel("Smart Environment Monitoring System")
+        self.subtitle_label = QLabel("XiaoJia — Digital Environmental Assistant for Jiading Campus, Tongji University")
         self.subtitle_label.setObjectName("subtitleLabel")
-        title_container.addWidget(self.subtitle_label)
+        text_container.addWidget(self.subtitle_label)
 
-        header_layout.addLayout(title_container)
+        left_container.addLayout(text_container)
+        header_layout.addLayout(left_container)
         header_layout.addStretch()
 
-        # 右侧：时间显示
+        # === 右侧：时间显示 ===
         time_container = QVBoxLayout()
-        time_container.setAlignment(Qt.AlignRight)
+        time_container.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         self.date_label = QLabel()
         self.date_label.setObjectName("datetimeLabel")
@@ -79,7 +165,7 @@ class BaseWindow(QMainWindow):
 
         self.time_label = QLabel()
         self.time_label.setObjectName("datetimeLabel")
-        self.time_label.setAlignment(Qt.AlignRight)
+        self.time_label.setAlignment(Qt.AlignCenter)
         self.time_label.setStyleSheet("font-size: 20px;")
         time_container.addWidget(self.time_label)
 
