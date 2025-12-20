@@ -235,6 +235,72 @@ QLineEdit:disabled {
     color: #5a6a7a;
 }
 
+/* ============ 数字输入框 ============ */
+QSpinBox, QDoubleSpinBox {
+    background: rgba(10, 30, 60, 0.8);
+    border: 1px solid #1a4a7a;
+    border-radius: 5px;
+    padding: 8px 12px;
+    color: #ffffff;
+    selection-background-color: #00a0cc;
+    min-width: 80px;
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border: 1px solid #00d4ff;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border: 1px solid #00d4ff;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    background: rgba(26, 74, 122, 0.8);
+    border: none;
+    border-left: 1px solid #1a4a7a;
+    border-top-right-radius: 5px;
+    width: 20px;
+}
+
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+    background: rgba(0, 212, 255, 0.3);
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #00d4ff;
+    width: 0;
+    height: 0;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    background: rgba(26, 74, 122, 0.8);
+    border: none;
+    border-left: 1px solid #1a4a7a;
+    border-bottom-right-radius: 5px;
+    width: 20px;
+}
+
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background: rgba(0, 212, 255, 0.3);
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #00d4ff;
+    width: 0;
+    height: 0;
+}
+
+QSpinBox:disabled, QDoubleSpinBox:disabled {
+    background: rgba(30, 40, 50, 0.5);
+    color: #5a6a7a;
+}
+
 /* ============ 下拉框 ============ */
 QComboBox {
     background: rgba(10, 30, 60, 0.8);
