@@ -8,16 +8,16 @@ from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QLineEdit,
-    QPushButton, QTextEdit, QListWidget, QListWidgetItem, QTableWidget,
-    QTableWidgetItem, QHeaderView
+    QPushButton, QListWidget, QListWidgetItem, QCheckBox, QGroupBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtGui import QColor
 
 from .base_page import BasePage
 from subscriber.subscriber_logic import SubscriberLogic
 from subscriber.location_widget import LocationWidget
 from subscriber.xiaojia_display import XiaojiaDisplay
-from ui.widgets.data_card import MiniCard, StatusCard
+from ui.widgets.data_card import MiniCard, StatusCard, DataCard
 from ui.widgets.chart_widget import LineChart
 from ui.widgets.map_widget import MapWidget
 
@@ -39,7 +39,25 @@ class SubscriberPage(BasePage):
         self.connection_changed.connect(self._on_connection)
 
         self.msg_count = 0
-        self.recent_values = []
+        
+        # 存储三类数据的历史值
+        self.data_history = {
+            "temperature": [],
+            "humidity": [],
+            "pressure": []
+        }
+        
+        # 存储当前最新值
+        self.current_values = {
+            "temperature": None,
+            "humidity": None,
+            "pressure": None
+        }
+        
+        # 设置定期检测连接状态的定时器（每3秒检测一次）
+        self.connection_check_timer = QTimer()
+        self.connection_check_timer.timeout.connect(self._check_connection_status)
+        self.connection_check_timer.start(3000)  # 每3秒检测一次
 
         # 标题
         self.content_layout.addWidget(
@@ -58,22 +76,92 @@ class SubscriberPage(BasePage):
 
         # 控制区
         control_panel, control_layout = self.create_panel("订阅控制", "🪢")
-        ctrl_row = self.create_row_layout()
-        self.topic_input = QLineEdit("sensor/#")
-        self.topic_input.setPlaceholderText("输入要订阅的Topic，例如 sensor/#")
-        self.btn_sub = QPushButton("订阅")
-        self.btn_unsub = QPushButton("取消订阅")
-        self.btn_clear = QPushButton("清空日志")
-
-        self.btn_sub.clicked.connect(self._on_subscribe_clicked)
-        self.btn_unsub.clicked.connect(self._on_unsubscribe_clicked)
-        self.btn_clear.clicked.connect(self._clear_logs)
-
-        ctrl_row.addWidget(self.topic_input, 3)
-        ctrl_row.addWidget(self.btn_sub)
-        ctrl_row.addWidget(self.btn_unsub)
-        ctrl_row.addWidget(self.btn_clear)
-        control_layout.addLayout(ctrl_row)
+        
+        # 主题选择区域
+        topic_group = QGroupBox("选择订阅主题")
+        topic_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #1a4a7a;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                color: #00d4ff;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
+        topic_layout = QHBoxLayout(topic_group)
+        topic_layout.setSpacing(20)
+        
+        # 定义可订阅的主题
+        self.topic_configs = {
+            "temperature": {
+                "label": "🌡️ 温度",
+                "topic": "sensor/temperature",
+                "checkbox": None
+            },
+            "humidity": {
+                "label": "💧 湿度",
+                "topic": "sensor/humidity",
+                "checkbox": None
+            },
+            "pressure": {
+                "label": "📊 气压",
+                "topic": "sensor/pressure",
+                "checkbox": None
+            }
+        }
+        
+        # 创建复选框
+        for key, config in self.topic_configs.items():
+            checkbox = QCheckBox(config["label"])
+            checkbox.setStyleSheet("""
+                QCheckBox {
+                    color: #dfe9f5;
+                    font-size: 13px;
+                    spacing: 8px;
+                }
+                QCheckBox::indicator {
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid #1a4a7a;
+                    border-radius: 3px;
+                    background: rgba(10, 30, 60, 0.8);
+                }
+                QCheckBox::indicator:hover {
+                    border: 2px solid #00d4ff;
+                }
+                QCheckBox::indicator:checked {
+                    background: qlineargradient(
+                        x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #00a0cc,
+                        stop:1 #0080aa
+                    );
+                    border: 2px solid #00d4ff;
+                }
+                QCheckBox::indicator:checked::after {
+                    content: "✓";
+                    color: white;
+                }
+            """)
+            checkbox.stateChanged.connect(lambda state, t=config["topic"]: self._on_topic_checkbox_changed(t, state))
+            config["checkbox"] = checkbox
+            topic_layout.addWidget(checkbox)
+        
+        topic_layout.addStretch()
+        control_layout.addWidget(topic_group)
+        
+        # 操作按钮行
+        btn_row = self.create_row_layout()
+        self.btn_clear = QPushButton("清空数据")
+        self.btn_clear.clicked.connect(self._clear_data)
+        btn_row.addWidget(self.btn_clear)
+        btn_row.addStretch()
+        control_layout.addLayout(btn_row)
 
         # 地图 + 信息 + 订阅列表（左右布局，左侧大地图）
         side_row = self.create_row_layout()
@@ -98,8 +186,30 @@ class SubscriberPage(BasePage):
         right_col.addWidget(info_panel)
 
         sub_panel, sub_layout = self.create_panel("订阅列表", "🧭")
+        sub_list_layout = QVBoxLayout()
+        sub_list_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.sub_list = QListWidget()
-        sub_layout.addWidget(self.sub_list)
+        self.sub_list.setStyleSheet("""
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #1a3a5c;
+            }
+            QListWidget::item:hover {
+                background: rgba(0, 200, 255, 0.1);
+            }
+        """)
+        self.sub_list.itemDoubleClicked.connect(self._on_sub_list_double_clicked)
+        
+        sub_list_layout.addWidget(self.sub_list)
+        
+        # 添加取消订阅提示
+        hint_label = QLabel("💡 双击列表项可取消订阅")
+        hint_label.setStyleSheet("color: #5588aa; font-size: 11px; padding: 5px;")
+        hint_label.setAlignment(Qt.AlignCenter)
+        sub_list_layout.addWidget(hint_label)
+        
+        sub_layout.addLayout(sub_list_layout)
         right_col.addWidget(sub_panel)
 
         side_row.addLayout(right_col, 1)
@@ -107,70 +217,154 @@ class SubscriberPage(BasePage):
         control_layout.addLayout(side_row)
         self.content_layout.addWidget(control_panel)
 
-        # 消息表 + 日志 + 趋势
-        main_panel, main_layout = self.create_panel("消息与趋势", "📑")
-        main_row = self.create_row_layout()
-
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["时间", "Topic", "类型", "数值", "位置"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.setSelectionBehavior(self.table.SelectRows)
-        self.table.setEditTriggers(self.table.NoEditTriggers)
-
-        self.log = QTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setPlaceholderText("消息 JSON 原文...")
-
-        self.chart = LineChart("最近数值趋势")
-
-        table_panel = QFrame()
-        tp_layout = QVBoxLayout(table_panel)
-        tp_layout.setContentsMargins(0, 0, 0, 0)
-        tp_layout.addWidget(self.table)
-        tp_layout.addWidget(self.log)
-
-        main_row.addWidget(table_panel, 2)
-        main_row.addWidget(self.chart, 1)
-
-        main_layout.addLayout(main_row)
-        self.content_layout.addWidget(main_panel)
+        # 三类数据面板（上下排列）
+        self.data_panels = {}
+        data_panels_container = QVBoxLayout()
+        data_panels_container.setSpacing(15)
+        
+        # 创建三个数据面板
+        for dtype, config in self.topic_configs.items():
+            panel_dict = self._create_data_panel(dtype, config["label"])
+            self.data_panels[dtype] = panel_dict
+            # 添加面板widget到布局
+            data_panels_container.addWidget(panel_dict["panel"])
+        
+        # 将数据面板容器添加到内容布局
+        data_container_widget = QWidget()
+        data_container_widget.setLayout(data_panels_container)
+        self.content_layout.addWidget(data_container_widget)
         self.content_layout.addStretch()
 
-        # 初始连接并订阅默认主题
-        self.logic.connect()
-        self.logic.subscribe("sensor/#")
+        # 初始状态：尝试自动连接broker（如果broker可用）
+        # 这样当发布端已连接时，订阅端也能显示连接状态
         self._refresh_sub_list()
-        self.send_status("✅ 订阅端已连接，本地 broker 127.0.0.1:1883")
+        # 尝试连接broker（异步，连接结果会通过回调更新状态）
+        self.logic.connect()
+        self.send_status("ℹ️ 订阅端已就绪，正在检测MQTT Broker...")
 
     # -------- UI 事件 --------
-    def _on_subscribe_clicked(self):
-        topic = self.topic_input.text().strip()
-        if not topic:
-            self.send_status("⚠️ 请输入 Topic")
-            return
-        ok = self.logic.subscribe(topic)
-        if ok:
-            self._refresh_sub_list()
-            self.send_status(f"✅ 已订阅: {topic}")
+    def _create_data_panel(self, dtype: str, label: str):
+        """创建数据面板（数据展示 + 趋势图）"""
+        panel, panel_layout = self.create_panel(label, self.topic_configs[dtype]["label"].split()[0])
+        
+        # 内容布局（水平：左侧数据卡片，右侧趋势图）
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(15)
+        
+        # 左侧：数据展示卡片
+        unit_map = {
+            "temperature": "°C",
+            "humidity": "%RH",
+            "pressure": "hPa"
+        }
+        data_card = DataCard(
+            label,
+            "--",
+            unit_map.get(dtype, ""),
+            self.topic_configs[dtype]["label"].split()[0],
+            "normal"
+        )
+        data_card.setMinimumWidth(250)
+        
+        # 右侧：趋势图
+        chart = LineChart(f"{label}趋势")
+        chart.setMinimumHeight(200)
+        
+        # 根据数据类型设置图表颜色
+        color_map = {
+            "temperature": "#ff8800",  # 橙色
+            "humidity": "#6496ff",     # 蓝色
+            "pressure": "#00d4ff"      # 青色
+        }
+        chart.set_line_color(QColor(color_map.get(dtype, "#00d4ff")))
+        
+        content_layout.addWidget(data_card, 1)
+        content_layout.addWidget(chart, 2)
+        
+        panel_layout.addLayout(content_layout)
+        
+        # 初始状态：隐藏（未订阅时）
+        panel.setVisible(False)
+        
+        return {
+            "panel": panel,
+            "card": data_card,
+            "chart": chart
+        }
+    
+    def _on_topic_checkbox_changed(self, topic: str, state: int):
+        """当复选框状态改变时，自动订阅或取消订阅"""
+        is_checked = (state == Qt.Checked)
+        
+        # 找到对应的数据类型
+        dtype = None
+        for key, config in self.topic_configs.items():
+            if config["topic"] == topic:
+                dtype = key
+                break
+        
+        if is_checked:
+            # 订阅主题（会自动尝试连接）
+            ok = self.logic.subscribe(topic)
+            if ok:
+                self._refresh_sub_list()
+                # 显示对应的数据面板
+                if dtype and dtype in self.data_panels:
+                    self.data_panels[dtype]["panel"].setVisible(True)
+                self.send_status(f"✅ 已订阅: {topic}")
+            else:
+                # 订阅失败，取消复选框勾选
+                for config in self.topic_configs.values():
+                    if config["topic"] == topic:
+                        config["checkbox"].blockSignals(True)
+                        config["checkbox"].setChecked(False)
+                        config["checkbox"].blockSignals(False)
+                        break
+                self.send_status(f"⚠️ 订阅失败: {topic}，请检查MQTT Broker是否运行", "warning")
         else:
-            self.send_status("⚠️ Topic 不合法或订阅失败，请检查通配符位置", "warning")
-
-    def _on_unsubscribe_clicked(self):
-        topic = self.topic_input.text().strip()
-        if not topic:
-            self.send_status("⚠️ 请输入要取消的 Topic")
-            return
+            # 取消订阅
+            self.logic.unsubscribe(topic)
+            self._refresh_sub_list()
+            # 隐藏对应的数据面板
+            if dtype and dtype in self.data_panels:
+                self.data_panels[dtype]["panel"].setVisible(False)
+                # 清空该类型的数据
+                self.data_history[dtype].clear()
+                self.current_values[dtype] = None
+                self.data_panels[dtype]["card"].set_value("--")
+                self.data_panels[dtype]["chart"].clear_data()
+            self.send_status(f"ℹ️ 已取消订阅: {topic}")
+    
+    def _on_sub_list_double_clicked(self, item: QListWidgetItem):
+        """双击列表项取消订阅"""
+        # 从列表项文本中提取topic（格式：📌 sensor/temperature）
+        item_text = item.text()
+        # 移除图标和空格，提取实际的topic
+        topic = item_text.replace("📌", "").strip()
+        
+        # 取消订阅
         self.logic.unsubscribe(topic)
+        # 更新对应的复选框状态
+        for config in self.topic_configs.values():
+            if config["topic"] == topic:
+                config["checkbox"].blockSignals(True)
+                config["checkbox"].setChecked(False)
+                config["checkbox"].blockSignals(False)
+                break
         self._refresh_sub_list()
         self.send_status(f"ℹ️ 已取消订阅: {topic}")
 
-    def _clear_logs(self):
-        self.table.setRowCount(0)
-        self.log.clear()
-        self.chart.clear_data()
+    def _clear_data(self):
+        """清空所有数据"""
         self.msg_count = 0
-        self.recent_values.clear()
+        for dtype in ["temperature", "humidity", "pressure"]:
+            self.data_history[dtype].clear()
+            self.current_values[dtype] = None
+            if dtype in self.data_panels:
+                self.data_panels[dtype]["card"].set_value("--")
+                self.data_panels[dtype]["chart"].clear_data()
         self._update_cards()
+        self.send_status("✅ 已清空所有数据")
 
     # -------- 信号桥接 --------
     def _emit_message(self, data: dict):
@@ -181,54 +375,69 @@ class SubscriberPage(BasePage):
 
     # -------- 槽函数 --------
     def _on_connection(self, connected: bool):
+        """连接状态变化 - 与发布界面保持一致"""
         if connected:
             self.status_card.set_status("已连接", "online")
-            self.send_status("✅ MQTT 已连接")
+            self.send_status("✅ 已连接到 MQTT Broker")
         else:
-            self.status_card.set_status("已断开", "offline")
-            self.send_status("⚠️ MQTT 断开")
+            self.status_card.set_status("未连接", "offline")
+            self.send_status("❌ 已断开连接")
 
     def _on_message(self, data: dict):
         self.msg_count += 1
         self._update_cards()
 
-        ts = data.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        topic = data.get("topic", "-")
         val = data.get("value", data.get("payload", "-"))
         dtype = data.get("type", "-")
         loc = data.get("location", "-")
         sensor_id = data.get("sensor_id", "-")
 
-        self._append_table(ts, topic, dtype, val, loc)
-        self._append_log(data)
-        self._update_chart(val)
+        # 更新对应类型的数据面板
+        if dtype in ["temperature", "humidity", "pressure"]:
+            try:
+                num_val = float(val)
+                self._update_data_panel(dtype, num_val)
+            except (ValueError, TypeError):
+                pass
+        
         self._update_xiaojia(dtype, val, loc, sensor_id)
 
     # -------- 辅助 --------
-    def _append_table(self, ts, topic, dtype, val, loc):
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        for col, content in enumerate([ts, topic, str(dtype), str(val), str(loc)]):
-            item = QTableWidgetItem(content)
-            self.table.setItem(row, col, item)
-        self.table.scrollToBottom()
-
-    def _append_log(self, data: dict):
-        try:
-            text = json.dumps(data, ensure_ascii=False)
-        except Exception:
-            text = str(data)
-        self.log.append(text)
-
-    def _update_chart(self, val):
-        try:
-            num = float(val)
-        except Exception:
+    def _update_data_panel(self, dtype: str, value: float):
+        """更新指定类型的数据面板"""
+        if dtype not in self.data_panels:
             return
-        self.recent_values.append(num)
-        if len(self.recent_values) > 50:
-            self.recent_values.pop(0)
-        self.chart.set_data(self.recent_values)
+        
+        # 更新当前值
+        self.current_values[dtype] = value
+        
+        # 更新历史数据（最多保留50个点）
+        self.data_history[dtype].append(value)
+        if len(self.data_history[dtype]) > 50:
+            self.data_history[dtype].pop(0)
+        
+        # 更新数据卡片
+        panel = self.data_panels[dtype]
+        panel["card"].set_value(f"{value:.1f}")
+        
+        # 更新趋势图
+        panel["chart"].set_data(self.data_history[dtype])
+        
+        # 根据数值设置状态
+        status = "normal"
+        if dtype == "temperature":
+            if value >= 30:
+                status = "warning"
+            elif value <= 5:
+                status = "warning"
+        elif dtype == "humidity":
+            if value >= 80:
+                status = "warning"
+        elif dtype == "pressure":
+            if value < 990 or value > 1030:
+                status = "warning"
+        
+        panel["card"].set_status(status)
 
     def _update_xiaojia(self, dtype, val, loc, sensor_id):
         mood = "normal"
@@ -263,14 +472,50 @@ class SubscriberPage(BasePage):
         self.subs_card.set_value(str(len(self.logic.list_subscriptions())))
 
     def _refresh_sub_list(self):
+        """刷新订阅列表，并同步更新复选框状态和数据面板显示"""
         self.sub_list.clear()
-        for t in self.logic.list_subscriptions():
-            QListWidgetItem(t, self.sub_list)
+        subscribed_topics = set(self.logic.list_subscriptions())
+        
+        # 更新列表
+        for t in sorted(subscribed_topics):
+            item = QListWidgetItem(f"📌 {t}")
+            item.setToolTip("双击取消订阅")
+            self.sub_list.addItem(item)
+        
+        # 同步更新复选框状态和数据面板显示
+        for dtype, config in self.topic_configs.items():
+            topic = config["topic"]
+            checkbox = config["checkbox"]
+            is_subscribed = topic in subscribed_topics
+            
+            checkbox.blockSignals(True)
+            checkbox.setChecked(is_subscribed)
+            checkbox.blockSignals(False)
+            
+            # 显示/隐藏对应的数据面板
+            if dtype in self.data_panels:
+                self.data_panels[dtype]["panel"].setVisible(is_subscribed)
+        
         self._update_cards()
 
     def refresh_data(self):
         """刷新数据"""
+        # 刷新时也检测连接状态
+        self._check_connection_status()
         self.send_status("订阅页面已刷新")
+    
+    def _check_connection_status(self):
+        """定期检测MQTT连接状态，如果未连接则尝试连接"""
+        # 如果当前未连接，尝试连接broker（这样当broker可用时能自动连接）
+        # 这样当发布端连接broker后，订阅端也能自动检测并连接
+        if not self.logic.is_connected():
+            try:
+                self.logic.connect()
+            except Exception:
+                pass
 
     def cleanup(self):
+        """清理资源"""
+        if hasattr(self, 'connection_check_timer'):
+            self.connection_check_timer.stop()
         self.logic.disconnect()

@@ -30,6 +30,8 @@ class SubscriberLogic:
         self._lock = threading.Lock()
         self._subscriptions = set()
         self._connected = False
+        self._auto_reconnect = True  # 自动重连标志
+        self._last_connect_attempt = 0  # 上次连接尝试时间
 
     # -------- 对外接口 --------
     def set_on_message(self, callback: Callable[[Dict], None]):
@@ -42,20 +44,57 @@ class SubscriberLogic:
 
     def connect(self):
         """连接到 MQTT Broker 并启动循环线程。"""
+        import time
         with self._lock:
             if self._connected:
                 return
-            self._client.connect(self.broker, self.port, self.keepalive)
-            self._client.loop_start()
+            
+            # 避免频繁连接尝试（至少间隔1秒）
+            current_time = time.time()
+            if current_time - self._last_connect_attempt < 1.0:
+                return
+            self._last_connect_attempt = current_time
+            
+            try:
+                # 如果之前连接失败，需要重新创建客户端
+                try:
+                    # 检查客户端是否处于错误状态
+                    if hasattr(self._client, '_sock') and self._client._sock is None:
+                        # 客户端可能处于错误状态，重新创建
+                        self._client = mqtt.Client()
+                        self._client.on_connect = self._on_connect
+                        self._client.on_disconnect = self._on_disconnect
+                        self._client.on_message = self._on_message
+                except Exception:
+                    # 如果客户端有问题，重新创建
+                    self._client = mqtt.Client()
+                    self._client.on_connect = self._on_connect
+                    self._client.on_disconnect = self._on_disconnect
+                    self._client.on_message = self._on_message
+                
+                self._client.connect(self.broker, self.port, self.keepalive)
+                self._client.loop_start()
+            except Exception as e:
+                # 连接失败时触发断开回调
+                self._connected = False
+                if self._on_connection_cb:
+                    self._on_connection_cb(False)
 
     def disconnect(self):
         """断开连接并停止循环线程。"""
         with self._lock:
             if not self._connected:
                 return
-            self._client.loop_stop()
-            self._client.disconnect()
-            self._connected = False
+            try:
+                self._client.loop_stop()
+                self._client.disconnect()
+            except Exception:
+                pass
+            finally:
+                self._connected = False
+                # 确保触发断开回调
+                if self._on_connection_cb:
+                    self._on_connection_cb(False)
 
     def _valid_filter(self, topic: str) -> bool:
         """简单校验订阅过滤器是否合法。"""
@@ -98,17 +137,43 @@ class SubscriberLogic:
 
     def list_subscriptions(self):
         return sorted(list(self._subscriptions))
+    
+    def is_connected(self) -> bool:
+        """检查是否已连接"""
+        return self._connected
 
     # -------- paho 回调 --------
     def _on_connect(self, client, userdata, flags, rc):
-        self._connected = True
-        if self._on_connection_cb:
-            self._on_connection_cb(True)
+        """MQTT 连接回调"""
+        if rc == 0:  # 连接成功
+            self._connected = True
+            if self._on_connection_cb:
+                self._on_connection_cb(True)
+        else:
+            # 连接失败
+            self._connected = False
+            if self._on_connection_cb:
+                self._on_connection_cb(False)
 
     def _on_disconnect(self, client, userdata, rc):
+        """MQTT 断开回调"""
+        was_connected = self._connected
         self._connected = False
         if self._on_connection_cb:
             self._on_connection_cb(False)
+        
+        # 如果之前已连接，现在断开，且启用了自动重连，尝试重新连接
+        if was_connected and self._auto_reconnect:
+            # 延迟重连，避免频繁尝试
+            threading.Timer(2.0, self._try_reconnect).start()
+    
+    def _try_reconnect(self):
+        """尝试重新连接"""
+        if not self._connected:
+            try:
+                self.connect()
+            except Exception:
+                pass
 
     def _on_message(self, client, userdata, msg):
         payload_text = msg.payload.decode("utf-8", errors="ignore").strip()
