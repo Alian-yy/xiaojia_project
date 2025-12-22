@@ -419,7 +419,7 @@ class PublisherPage(BasePage):
         port = self.port_input.value()
         
         if not broker:
-            self.send_status("⚠️ Broker地址不能为空", "error")
+            self.send_status("❌ Broker地址不能为空")
             # 输入框高亮提示
             self.broker_input.setStyleSheet("""
                 QLineEdit {
@@ -446,7 +446,7 @@ class PublisherPage(BasePage):
             self.btn_connect.setEnabled(False)
             self.btn_connect.setText("连接中...")
         else:
-            self.send_status("❌ 连接失败，请检查Broker是否运行", "error")
+            self.send_status("❌ 连接失败，请检查Broker是否运行")
 
     def _on_disconnect_clicked(self):
         """断开按钮点击"""
@@ -492,7 +492,7 @@ class PublisherPage(BasePage):
         total_records = len(records)
         
         if total_records == 0:
-            self.send_status("⚠️ 没有可发布的数据文件", "warning")
+            self.send_status("⚠️ 没有可发布的数据文件")
             return
         
         if self.logic.start_publish_from_files(interval):
@@ -505,7 +505,7 @@ class PublisherPage(BasePage):
             self.send_status(f"🚀 开始发布数据（共 {total_records} 条，间隔 {interval}s）...")
             self._log(f"🚀 开始从文件发布数据（间隔 {interval}s，共 {total_records} 条）")
         else:
-            self.send_status("⚠️ 发布失败，可能已在运行中", "error")
+            self.send_status("❌ 发布失败，可能已在运行中")
 
     def _on_stop_publish(self):
         """停止发布"""
@@ -532,7 +532,7 @@ class PublisherPage(BasePage):
         if self.logic.publish_single(data_type, value):
             self.send_status(f"✅ 已发布 {data_type}={value}")
         else:
-            self.send_status("❌ 发布失败，请先连接MQTT Broker", "error")
+            self.send_status("❌ 发布失败，请先连接MQTT Broker")
 
     def _on_message_published(self, topic: str, payload: dict):
         """消息发布回调"""
