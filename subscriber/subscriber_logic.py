@@ -142,6 +142,19 @@ class SubscriberLogic:
         """检查是否已连接"""
         return self._connected
 
+    def publish(self, topic: str, payload) -> bool:
+        """发布控制类消息（用于与发布端通信）。payload 可为 str 或 dict。"""
+        try:
+            if not self._connected:
+                self.connect()
+            if isinstance(payload, dict):
+                import json as _json
+                payload = _json.dumps(payload, ensure_ascii=False)
+            self._client.publish(topic, payload)
+            return True
+        except Exception:
+            return False
+
     # -------- paho 回调 --------
     def _on_connect(self, client, userdata, flags, rc):
         """MQTT 连接回调"""

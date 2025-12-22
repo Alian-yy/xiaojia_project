@@ -88,7 +88,7 @@ class MainWindow(BaseWindow):
         sidebar_layout.addStretch()
 
         # 连接状态指示
-        self.connection_status = QLabel("● MQTT 未连接")
+        self.connection_status = QLabel("")
         self.connection_status.setStyleSheet("""
             color: #ff5050;
             font-size: 11px;
@@ -149,6 +149,10 @@ class MainWindow(BaseWindow):
             if hasattr(page, 'status_message'):
                 page.status_message.connect(self._on_page_status)
 
+        # 当发布端连接状态变化时，驱动订阅端和分析端的连接
+        if hasattr(self.publisher_page, 'connection_changed'):
+            self.publisher_page.connection_changed.connect(self._on_publisher_connection_changed)
+
     def switch_page(self, index: int):
         """切换页面"""
         # 更新按钮状态
@@ -188,6 +192,15 @@ class MainWindow(BaseWindow):
             if hasattr(page, 'refresh_data'):
                 page.refresh_data()
                 self.set_status("数据已刷新", "success")
+
+    def _on_publisher_connection_changed(self, connected: bool):
+        """发布端连接事件：联动订阅端与分析端"""
+        if hasattr(self.subscriber_page, 'enable_auto_connect'):
+            self.subscriber_page.enable_auto_connect(connected, connect_now=connected)
+        if hasattr(self.analyzer_page, 'enable_mqtt'):
+            self.analyzer_page.enable_mqtt(connected)
+        # 同步侧边栏状态
+        self.set_mqtt_connected(connected)
 
     def _open_settings(self):
         """打开设置"""

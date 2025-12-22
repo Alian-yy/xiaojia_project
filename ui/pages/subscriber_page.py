@@ -54,10 +54,10 @@ class SubscriberPage(BasePage):
             "pressure": None
         }
         
-        # 设置定期检测连接状态的定时器（每3秒检测一次）
+        # 设置定期检测连接状态的定时器（默认不启动，待发布端连接后再开启）
         self.connection_check_timer = QTimer()
         self.connection_check_timer.timeout.connect(self._check_connection_status)
-        self.connection_check_timer.start(3000)  # 每3秒检测一次
+        self.auto_connect_enabled = False
 
         # 标题
         self.content_layout.addWidget(
@@ -235,12 +235,9 @@ class SubscriberPage(BasePage):
         self.content_layout.addWidget(data_container_widget)
         self.content_layout.addStretch()
 
-        # 初始状态：尝试自动连接broker（如果broker可用）
-        # 这样当发布端已连接时，订阅端也能显示连接状态
+        # 初始状态：不自动连接，由发布端连接成功后触发
         self._refresh_sub_list()
-        # 尝试连接broker（异步，连接结果会通过回调更新状态）
-        self.logic.connect()
-        self.send_status("ℹ️ 订阅端已就绪，正在检测MQTT Broker...")
+        self.send_status("ℹ️ 订阅端已就绪，等待发布端连接后再连接 MQTT")
 
     # -------- UI 事件 --------
     def _create_data_panel(self, dtype: str, label: str):
@@ -312,6 +309,8 @@ class SubscriberPage(BasePage):
                 if dtype and dtype in self.data_panels:
                     self.data_panels[dtype]["panel"].setVisible(True)
                 self.send_status(f"✅ 已订阅: {topic}")
+                # 将最新选择推送给发布端，要求只发布选中的类型
+                self._publish_selected_filter()
             else:
                 # 订阅失败，取消复选框勾选
                 for config in self.topic_configs.values():
@@ -334,6 +333,8 @@ class SubscriberPage(BasePage):
                 self.data_panels[dtype]["card"].set_value("--")
                 self.data_panels[dtype]["chart"].clear_data()
             self.send_status(f"ℹ️ 已取消订阅: {topic}")
+            # 同步告知发布端更新过滤
+            self._publish_selected_filter()
     
     def _on_sub_list_double_clicked(self, item: QListWidgetItem):
         """双击列表项取消订阅"""
@@ -365,6 +366,35 @@ class SubscriberPage(BasePage):
                 self.data_panels[dtype]["chart"].clear_data()
         self._update_cards()
         self.send_status("✅ 已清空所有数据")
+
+    def _publish_selected_filter(self):
+        """向发布端发送当前选择的类型过滤设置。"""
+        enabled = []
+        for dtype, cfg in self.topic_configs.items():
+            if cfg["checkbox"].isChecked():
+                enabled.append(dtype)
+        # 空列表表示不希望发布任何类型
+        payload = {"enabled": enabled}
+        # 使用控制主题通知发布端
+        self.logic.publish("control/publish_filter", payload)
+
+    # ===== 外部控制：由发布端连接事件触发 =====
+    def enable_auto_connect(self, enabled: bool, connect_now: bool = True):
+        """由外部控制是否自动连接（发布端连接后启用）。"""
+        self.auto_connect_enabled = enabled
+        if enabled:
+            self.connection_check_timer.start(3000)
+            if connect_now:
+                try:
+                    self.logic.connect()
+                except Exception:
+                    pass
+        else:
+            self.connection_check_timer.stop()
+            try:
+                self.logic.disconnect()
+            except Exception:
+                pass
 
     # -------- 信号桥接 --------
     def _emit_message(self, data: dict):
@@ -506,8 +536,9 @@ class SubscriberPage(BasePage):
     
     def _check_connection_status(self):
         """定期检测MQTT连接状态，如果未连接则尝试连接"""
-        # 如果当前未连接，尝试连接broker（这样当broker可用时能自动连接）
-        # 这样当发布端连接broker后，订阅端也能自动检测并连接
+        if not self.auto_connect_enabled:
+            return
+        # 如果当前未连接，尝试连接broker（发布端连接后才会启用）
         if not self.logic.is_connected():
             try:
                 self.logic.connect()

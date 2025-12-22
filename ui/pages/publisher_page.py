@@ -90,9 +90,26 @@ class PublisherPage(BasePage):
         self.btn_connect.setMinimumWidth(100)
         self.btn_connect.setStyleSheet("""
             QPushButton {
-                padding: 8px 16px;
+                padding: 10px 18px;
                 font-size: 13px;
                 font-weight: bold;
+                color: #0c1729;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #7ce7ff,
+                    stop:1 #3cc5ff);
+                border: 2px solid #4fd4ff;
+                border-radius: 10px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #9bf0ff,
+                    stop:1 #56d6ff);
+                border-color: #7ce7ff;
+            }
+            QPushButton:disabled {
+                color: #6f7b91;
+                background: #1e2f4a;
+                border-color: #2c456a;
             }
         """)
         self.btn_disconnect = QPushButton("🔌 断开")
@@ -100,12 +117,26 @@ class PublisherPage(BasePage):
         self.btn_disconnect.setEnabled(False)
         self.btn_disconnect.setStyleSheet("""
             QPushButton {
-                padding: 8px 16px;
+                padding: 10px 18px;
                 font-size: 13px;
                 font-weight: bold;
+                color: #ffecec;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #ff6b6b,
+                    stop:1 #d83c3c);
+                border: 2px solid #ff8a8a;
+                border-radius: 10px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #ff8a8a,
+                    stop:1 #e34f4f);
+                border-color: #ffc1c1;
             }
             QPushButton:disabled {
-                opacity: 0.5;
+                color: #7f6f6f;
+                background: #2d2222;
+                border-color: #3c2e2e;
             }
         """)
         
@@ -202,25 +233,29 @@ class PublisherPage(BasePage):
         self.btn_start.setMinimumHeight(40)
         self.btn_start.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
+                padding: 12px 22px;
                 font-size: 14px;
                 font-weight: bold;
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #00a0cc,
-                    stop:1 #0080aa
-                );
-                border: 2px solid #00d4ff;
+                color: #0b1a2a;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #8df5c5,
+                    stop:1 #3ddf9e);
+                border: 2px solid #6ce6b4;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(61, 223, 158, 0.3);
             }
             QPushButton:hover {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #00b0dc,
-                    stop:1 #0090ba
-                );
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #adf9d6,
+                    stop:1 #5aecb4);
+                border-color: #9cf7d0;
+                box-shadow: 0 6px 14px rgba(92, 236, 180, 0.35);
             }
             QPushButton:disabled {
-                opacity: 0.5;
+                color: #6e7b82;
+                background: #1f2f35;
+                border-color: #2f444c;
+                box-shadow: none;
             }
         """)
         self.btn_stop = QPushButton("⏹ 停止发布")
@@ -228,25 +263,29 @@ class PublisherPage(BasePage):
         self.btn_stop.setEnabled(False)
         self.btn_stop.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
+                padding: 12px 22px;
                 font-size: 14px;
                 font-weight: bold;
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #aa3030,
-                    stop:1 #802020
-                );
-                border: 2px solid #ff5050;
+                color: #ffecec;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #ff8c7a,
+                    stop:1 #ff5263);
+                border: 2px solid #ff8fa0;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(255, 92, 113, 0.35);
             }
             QPushButton:hover {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #bb4040,
-                    stop:1 #903030
-                );
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #ff9f8f,
+                    stop:1 #ff6f7f);
+                border-color: #ffc0c9;
+                box-shadow: 0 6px 14px rgba(255, 111, 127, 0.4);
             }
             QPushButton:disabled {
-                opacity: 0.5;
+                color: #7f6f6f;
+                background: #2d2222;
+                border-color: #3c2e2e;
+                box-shadow: none;
             }
         """)
         
@@ -288,26 +327,29 @@ class PublisherPage(BasePage):
         self.btn_publish.setMinimumHeight(40)
         self.btn_publish.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
+                padding: 12px 22px;
                 font-size: 14px;
                 font-weight: bold;
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #1a5a9a,
-                    stop:1 #0d3a6a
-                );
-                border: 2px solid #2a7acc;
+                color: #e8f3ff;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #3aa0ff,
+                    stop:1 #1f6fff);
+                border: 2px solid #5ab3ff;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(58, 160, 255, 0.35);
             }
             QPushButton:hover {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #2a7acc,
-                    stop:1 #1a5a9a
-                );
-                border: 2px solid #00d4ff;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #62b6ff,
+                    stop:1 #3685ff);
+                border-color: #8dcaff;
+                box-shadow: 0 6px 14px rgba(80, 181, 255, 0.4);
             }
             QPushButton:disabled {
-                opacity: 0.5;
+                color: #7c889a;
+                background: #1d2b45;
+                border-color: #2d4166;
+                box-shadow: none;
             }
         """)
         self.btn_publish.clicked.connect(self._on_publish_single)
@@ -370,11 +412,6 @@ class PublisherPage(BasePage):
         self._connect_anim = QPropertyAnimation(self.btn_connect, b"geometry")
         self._connect_anim.setDuration(200)
         self._connect_anim.setEasingCurve(QEasingCurve.OutCubic)
-        
-        # 发布按钮动画
-        self._publish_anim = QPropertyAnimation(self.btn_publish, b"geometry")
-        self._publish_anim.setDuration(200)
-        self._publish_anim.setEasingCurve(QEasingCurve.OutCubic)
     
     def _on_connect_clicked(self):
         """连接按钮点击"""
@@ -491,13 +528,6 @@ class PublisherPage(BasePage):
         
         data_type = self.type_combo.currentText()
         value = self.value_input.value()
-        
-        # 按钮动画反馈
-        original_geom = self.btn_publish.geometry()
-        self._publish_anim.setStartValue(original_geom)
-        self._publish_anim.setEndValue(original_geom.adjusted(-2, -2, 2, 2))
-        self._publish_anim.setKeyValueAt(0.5, original_geom.adjusted(-3, -3, 3, 3))
-        self._publish_anim.start()
         
         if self.logic.publish_single(data_type, value):
             self.send_status(f"✅ 已发布 {data_type}={value}")

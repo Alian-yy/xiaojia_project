@@ -262,6 +262,9 @@ class AnalyzerPage(BasePage):
         success = self.worker.init_brain()
         if not success:
             raise RuntimeError("无法初始化分析引擎")
+
+        # 默认不自动连接 MQTT，等待发布端连接后再触发
+        self.mqtt_enabled = False
     
     @pyqtSlot(dict, str, str)
     def _on_data_received(self, sensor_data: dict, location: str, sensor_id: str):
@@ -1018,8 +1021,29 @@ class AnalyzerPage(BasePage):
         self._update_reference_values()
         self._update_comparison_chart("temperature")
         self.send_status("✅ 分析页面已刷新")
+
+    # ===== 外部控制：由发布端连接事件触发 MQTT 订阅 =====
+    def enable_mqtt(self, enabled: bool):
+        self.mqtt_enabled = enabled
+        brain = getattr(self.worker, "xiaojia_brain", None)
+        if not brain:
+            return
+        try:
+            if enabled and hasattr(brain, "connect_mqtt"):
+                brain.connect_mqtt()
+            if not enabled and hasattr(brain, "disconnect_mqtt"):
+                brain.disconnect_mqtt()
+        except Exception:
+            pass
     
     def cleanup(self):
         """清理资源"""
         if self.timer and self.timer.isActive():
             self.timer.stop()
+        # 断开按需连接的MQTT
+        brain = getattr(self.worker, "xiaojia_brain", None)
+        if brain and hasattr(brain, "disconnect_mqtt"):
+            try:
+                brain.disconnect_mqtt()
+            except Exception:
+                pass

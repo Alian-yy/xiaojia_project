@@ -40,6 +40,9 @@ class PublisherLogic:
         self._connected = False
         self._lock = threading.Lock()
 
+        # 发布过滤：默认发布全部类型，可通过控制主题动态调整
+        self.enabled_types = {"temperature", "humidity", "pressure"}
+
         # 回调
         self._on_message_cb: Optional[Callable[[str, dict], None]] = None
         self._on_connection_cb: Optional[Callable[[bool], None]] = None
@@ -73,6 +76,7 @@ class PublisherLogic:
                 self._client = mqtt.Client()
                 self._client.on_connect = self._on_connect
                 self._client.on_disconnect = self._on_disconnect
+                self._client.on_message = self._on_message
                 self._client.connect(self.broker, self.port, self.keepalive)
                 self._client.loop_start()
                 return True
@@ -97,6 +101,10 @@ class PublisherLogic:
         """发布单条消息"""
         if not self._connected:
             return False
+
+        # 过滤未启用的数据类型
+        if data_type not in self.enabled_types:
+            return True  # 视为成功但不实际发布，便于统一流程
 
         if timestamp is None:
             from datetime import datetime
@@ -182,6 +190,11 @@ class PublisherLogic:
             except (TypeError, ValueError):
                 continue
 
+            # 根据启用的类型进行过滤
+            if dtype not in self.enabled_types:
+                time.sleep(interval)
+                continue
+
             if self.publish_single(dtype, num_val, ts):
                 published += 1
 
@@ -194,6 +207,11 @@ class PublisherLogic:
     def _on_connect(self, client, userdata, flags, rc):
         """MQTT 连接回调"""
         self._connected = True
+        try:
+            # 订阅控制主题，用于接收订阅端的发布过滤指令
+            self._client.subscribe("control/publish_filter")
+        except Exception:
+            pass
         if self._on_connection_cb:
             self._on_connection_cb(True)
 
@@ -202,6 +220,45 @@ class PublisherLogic:
         self._connected = False
         if self._on_connection_cb:
             self._on_connection_cb(False)
+
+    # ---- 控制通道处理 ----
+    def _on_message(self, client, userdata, msg):
+        """处理控制主题消息：更新 enabled_types
+        支持两种载荷格式：
+        1) {"enabled": ["temperature", "humidity"]}
+        2) {"temperature": true, "humidity": false, "pressure": true}
+        """
+        try:
+            topic = getattr(msg, "topic", "")
+            if topic != "control/publish_filter":
+                return
+            payload_text = msg.payload.decode("utf-8", errors="ignore").strip()
+            data = json.loads(payload_text) if payload_text else {}
+
+            new_enabled = set()
+            if isinstance(data, dict):
+                if "enabled" in data and isinstance(data["enabled"], (list, tuple, set)):
+                    for t in data["enabled"]:
+                        if t in {"temperature", "humidity", "pressure"}:
+                            new_enabled.add(t)
+                else:
+                    for t in ("temperature", "humidity", "pressure"):
+                        if bool(data.get(t, False)):
+                            new_enabled.add(t)
+
+            self.enabled_types = new_enabled
+        except Exception:
+            pass
+
+    # ---- 外部设置过滤 ----
+    def set_enabled_types(self, enabled):
+        """直接设置启用的发布类型（list/tuple/set）"""
+        try:
+            enabled_set = {t for t in enabled if t in {"temperature", "humidity", "pressure"}}
+            if enabled_set:
+                self.enabled_types = enabled_set
+        except Exception:
+            pass
 
 
 __all__ = ["PublisherLogic"]

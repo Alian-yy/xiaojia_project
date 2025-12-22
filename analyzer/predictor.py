@@ -35,6 +35,7 @@ class XiaojiaBrain:
         
         # MQTT订阅器
         self.subscriber = None
+        self._mqtt_connected = False
         self.realtime_data = None
         self.realtime_callback = None
         
@@ -129,17 +130,36 @@ class XiaojiaBrain:
             # 设置消息回调
             self.subscriber.set_on_message(self._on_mqtt_message)
             
-            # 连接并订阅传感器主题
+        except ImportError as e:
+            raise
+        except Exception as e:
+            raise
+
+    def connect_mqtt(self):
+        """按需连接MQTT，避免在发布端未连接前抢先连接"""
+        if not self.subscriber:
+            return False
+        if self._mqtt_connected:
+            return True
+        try:
             self.subscriber.connect()
             self.subscriber.subscribe("sensor/temperature")
             self.subscriber.subscribe("sensor/humidity")
             self.subscriber.subscribe("sensor/pressure")
             self.subscriber.subscribe("sensor/#")  # 通配符订阅
-            
-        except ImportError as e:
-            raise
-        except Exception as e:
-            raise
+            self._mqtt_connected = True
+            return True
+        except Exception:
+            return False
+
+    def disconnect_mqtt(self):
+        """断开按需连接的MQTT订阅"""
+        if self.subscriber and self._mqtt_connected:
+            try:
+                self.subscriber.disconnect()
+            except Exception:
+                pass
+        self._mqtt_connected = False
     
     def _on_mqtt_message(self, mqtt_data: Dict):
         """处理MQTT消息 - 适配publish_logic的消息格式"""
